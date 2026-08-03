@@ -2,11 +2,18 @@
 # MY CV
 ชื่อ-นามสกุล:อภิชัย ไกรปล้อง
 
-Email:Apichai.kra@ku.th
+Email : Apichai.kra@ku.th
 
-GitHub:https://github.com/Apichaikraiplong/Apichaikraiplong.github.io
+GitHub : https://github.com/Apichaikraiplong/Apichaikraiplong.github.io
 
-Education:Kasetsart University
+Education : Kasetsart University
+
+skill : 
+
+Python Java C++
+
+Graphic Design
+
 
 # Interactive Computer Graphic
 
