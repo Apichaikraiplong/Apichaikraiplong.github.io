@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>My Paint - Assignment#2</title>
+<style>
+  body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: #c0c0c0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h2 { margin-bottom: 10px; }
+
+  #toolbar {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    background: #ddd;
+    border: 2px solid #888;
+    padding: 8px 14px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .group { display: flex; gap: 6px; align-items: center; }
+
+  button.tool {
+    width: 42px;
+    height: 42px;
+    font-size: 20px;
+    cursor: pointer;
+    border: 2px solid #999;
+    background: #f0f0f0;
+    border-radius: 4px;
+  }
+  button.tool.active {
+    border-color: #2563eb;
+    background: #dbeafe;
+  }
+  button.tool:hover { background: #e6e6e6; }
+
+  #thickness-value { width: 22px; display: inline-block; text-align: center; }
+
+  #palette {
+    display: grid;
+    grid-template-columns: repeat(8, 20px);
+    gap: 3px;
+  }
+  .swatch {
+    width: 20px;
+    height: 20px;
+    border: 1px solid #666;
+    cursor: pointer;
+  }
+  .swatch.active { outline: 2px solid #2563eb; outline-offset: 1px; }
+
+  #canvas {
+    image-rendering: pixelated;
+    border: 2px solid #444;
+    background: #fff;
+    cursor: crosshair;
+  }
+
+  #clearBtn {
+    padding: 8px 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    border: 2px solid #999;
+    background: #f0f0f0;
+  }
+  #clearBtn:hover { background: #fca5a5; }
+</style>
+</head>
+<body>
+
+<h2>🎨 My Paint</h2>
+
+<div id="toolbar">
+  <div class="group">
+    <button class="tool active" data-tool="pencil" title="ดินสอ">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#333" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M14.5 3.5l6 6-11 11H3.5v-6z"/>
+        <path d="M12 6l6 6"/>
+      </svg>
+    </button>
+    <button class="tool" data-tool="line" title="เส้น">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#333" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="5" cy="19" r="1.8" fill="#333" stroke="none"/>
+        <line x1="5" y1="19" x2="19" y2="5"/>
+        <circle cx="19" cy="5" r="1.8" fill="#333" stroke="none"/>
+      </svg>
+    </button>
+    <button class="tool" data-tool="rect" title="สี่เหลี่ยม">▭</button>
+    <button class="tool" data-tool="ellipse" title="วงรี">◯</button>
+    <button class="tool" data-tool="eraser" title="ยางลบ">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#333" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M17 3l4 4-10.5 10.5H6L2.5 14z" fill="#f7c9d8"/>
+        <path d="M13 7l4 4"/>
+        <line x1="4" y1="21" x2="15" y2="21"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="group">
+    <label for="colorPicker">สี:</label>
+    <input type="color" id="colorPicker" value="#000000">
+    <div id="palette"></div>
+  </div>
+
+  <div class="group">
+    <label for="thickness">ความหนา:</label>
+    <input type="range" id="thickness" min="1" max="20" value="2">
+    <span id="thickness-value">2</span>
+  </div>
+
+  <button id="clearBtn">🗑️ Clear</button>
+</div>
+
+<canvas id="canvas" width="200" height="200" style="width:500px; height:500px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let imageData = ctx.createImageData(canvas.width, canvas.height);
+let pixels = imageData.data;
+
+// ---------- low-level raster functions (based on the provided example) ----------
+
+function putPixel(x, y, r, g, b, a = 255) {
+  x = Math.round(x);
+  y = Math.round(y);
+  if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) return;
+  const idx = (y * canvas.width + x) * 4;
+  pixels[idx] = r;
+  pixels[idx + 1] = g;
+  pixels[idx + 2] = b;
+  pixels[idx + 3] = a;
+}
+
+// stamp a filled circular "brush" - gives thickness to lines/points
+function stampBrush(cx, cy, radius, r, g, b, a) {
+  const rr = radius * radius;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy <= rr) {
+        putPixel(cx + dx, cy + dy, r, g, b, a);
+      }
+    }
+  }
+}
+
+// thick line: walk along the line and stamp a brush at every step
+function drawThickLine(x1, y1, x2, y2, r, g, b, a, thickness) {
+  const radius = Math.max(0, Math.floor(thickness / 2));
+  const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1), 1);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = x1 + (x2 - x1) * t;
+    const y = y1 + (y2 - y1) * t;
+    stampBrush(Math.round(x), Math.round(y), radius, r, g, b, a);
+  }
+}
+
+function drawRectThick(x1, y1, x2, y2, r, g, b, a, thickness) {
+  drawThickLine(x1, y1, x2, y1, r, g, b, a, thickness); // top
+  drawThickLine(x2, y1, x2, y2, r, g, b, a, thickness); // right
+  drawThickLine(x2, y2, x1, y2, r, g, b, a, thickness); // bottom
+  drawThickLine(x1, y2, x1, y1, r, g, b, a, thickness); // left
+}
+
+function drawEllipseThick(cx, cy, rx, ry, r, g, b, a, thickness) {
+  const steps = 720; // fine angle steps so the outline has no gaps
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * 2 * Math.PI;
+    for (let t = 0; t < thickness; t++) {
+      const currRx = Math.max(rx - t, 0);
+      const currRy = Math.max(ry - t, 0);
+      const x = cx + currRx * Math.cos(angle);
+      const y = cy + currRy * Math.sin(angle);
+      putPixel(Math.round(x), Math.round(y), r, g, b, a);
+    }
+  }
+}
+
+function fillCanvas(r, g, b) {
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      putPixel(x, y, r, g, b, 255);
+    }
+  }
+}
+
+// ---------- helpers ----------
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function toCanvasPos(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: Math.floor((clientX - rect.left) * scaleX),
+    y: Math.floor((clientY - rect.top) * scaleY)
+  };
+}
+
+// ---------- state ----------
+
+let currentTool = 'pencil';
+let currentColor = { r: 0, g: 0, b: 0 };
+let thickness = 2;
+
+let isDrawing = false;
+let startX = 0, startY = 0;
+let lastX = 0, lastY = 0;
+let snapshot = null; // used to preview line/rect/ellipse while dragging
+
+// ---------- UI wiring ----------
+
+document.querySelectorAll('button.tool').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('button.tool').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentTool = btn.dataset.tool;
+  });
+});
+
+const colorPicker = document.getElementById('colorPicker');
+colorPicker.addEventListener('input', () => {
+  currentColor = hexToRgb(colorPicker.value);
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+});
+
+const thicknessInput = document.getElementById('thickness');
+const thicknessValue = document.getElementById('thickness-value');
+thicknessInput.addEventListener('input', () => {
+  thickness = parseInt(thicknessInput.value, 10);
+  thicknessValue.textContent = thickness;
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  fillCanvas(255, 255, 255);
+  ctx.putImageData(imageData, 0, 0);
+});
+
+// simple preset palette, like the classic Paint color row
+const paletteColors = [
+  '#000000', '#7f7f7f', '#880015', '#ed1c24', '#ff7f27', '#fff200',
+  '#22b14c', '#00a2e8', '#3f48cc', '#a349a4', '#ffffff', '#c3c3c3',
+  '#b97a57', '#ffaec9', '#ffc90e', '#efe4b0', '#b5e61d', '#99d9ea',
+  '#7092be', '#c8bfe7'
+];
+const paletteDiv = document.getElementById('palette');
+paletteColors.forEach(hex => {
+  const sw = document.createElement('div');
+  sw.className = 'swatch';
+  sw.style.background = hex;
+  sw.addEventListener('click', () => {
+    currentColor = hexToRgb(hex);
+    colorPicker.value = hex;
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+  });
+  paletteDiv.appendChild(sw);
+});
+
+// ---------- mouse interaction ----------
+
+canvas.addEventListener('mousedown', (event) => {
+  const { x, y } = toCanvasPos(event.clientX, event.clientY);
+  isDrawing = true;
+  startX = lastX = x;
+  startY = lastY = y;
+
+  if (currentTool === 'pencil') {
+    stampBrush(x, y, Math.floor(thickness / 2), currentColor.r, currentColor.g, currentColor.b, 255);
+    ctx.putImageData(imageData, 0, 0);
+  } else if (currentTool === 'eraser') {
+    stampBrush(x, y, Math.floor(thickness / 2), 255, 255, 255, 255);
+    ctx.putImageData(imageData, 0, 0);
+  } else {
+    // line / rect / ellipse need a snapshot to preview against
+    snapshot = new Uint8ClampedArray(pixels);
+  }
+});
+
+canvas.addEventListener('mousemove', (event) => {
+  if (!isDrawing) return;
+  const { x, y } = toCanvasPos(event.clientX, event.clientY);
+
+  if (currentTool === 'pencil') {
+    drawThickLine(lastX, lastY, x, y, currentColor.r, currentColor.g, currentColor.b, 255, thickness);
+    lastX = x; lastY = y;
+    ctx.putImageData(imageData, 0, 0);
+  } else if (currentTool === 'eraser') {
+    drawThickLine(lastX, lastY, x, y, 255, 255, 255, 255, thickness);
+    lastX = x; lastY = y;
+    ctx.putImageData(imageData, 0, 0);
+  } else if (currentTool === 'line') {
+    pixels.set(snapshot);
+    drawThickLine(startX, startY, x, y, currentColor.r, currentColor.g, currentColor.b, 255, thickness);
+    ctx.putImageData(imageData, 0, 0);
+  } else if (currentTool === 'rect') {
+    pixels.set(snapshot);
+    drawRectThick(startX, startY, x, y, currentColor.r, currentColor.g, currentColor.b, 255, thickness);
+    ctx.putImageData(imageData, 0, 0);
+  } else if (currentTool === 'ellipse') {
+    pixels.set(snapshot);
+    const cx = (startX + x) / 2, cy = (startY + y) / 2;
+    const rx = Math.abs(x - startX) / 2, ry = Math.abs(y - startY) / 2;
+    drawEllipseThick(cx, cy, rx, ry, currentColor.r, currentColor.g, currentColor.b, 255, thickness);
+    ctx.putImageData(imageData, 0, 0);
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  isDrawing = false;
+  snapshot = null;
+});
+
+// ---------- init ----------
+fillCanvas(255, 255, 255);
+ctx.putImageData(imageData, 0, 0);
+</script>
+</body>
+</html>
