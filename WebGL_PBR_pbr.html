@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assignment #3 – Next Gen Rendering</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
+    canvas { display: block; }
+
+    #title {
+      position: fixed; top: 14px; left: 14px;
+      font-size: 12px; color: rgba(255,210,110,0.75);
+      text-shadow: 0 0 12px rgba(255,140,40,0.4);
+      z-index: 50; pointer-events: none; line-height: 1.6;
+    }
+    #title strong { color: rgba(255,220,140,0.95); font-size: 14px; }
+
+    #loading {
+      position: fixed; inset: 0;
+      background: rgba(2,3,14,0.92);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 900; gap: 12px;
+      transition: opacity 0.5s ease;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    #loading-bar-wrap { width: 200px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+    #loading-bar { height: 100%; width: 0%; background: linear-gradient(90deg,#ff6600,#ffcc44); border-radius: 2px; transition: width 0.3s; }
+    #loading-text { font-size: 14px; letter-spacing: 2px; color: rgba(255,210,110,0.85); }
+
+    /* ── Left: Character & Scene Selector ─────── */
+    #selector {
+      position: fixed; top: 50%; left: 14px; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 6px; z-index: 100;
+    }
+    .sel-label {
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+      color: rgba(255,210,110,0.45); margin: 6px 0 2px;
+    }
+    .sel-btn {
+      background: rgba(2,4,18,0.75);
+      border: 1px solid rgba(255,210,110,0.18);
+      color: rgba(255,255,255,0.65);
+      padding: 6px 12px; border-radius: 5px; cursor: pointer;
+      font-size: 12px; transition: all 0.18s; text-align: left;
+      min-width: 130px;
+    }
+    .sel-btn:hover { border-color: rgba(255,210,110,0.45); color: #fff; background: rgba(255,150,50,0.08); }
+    .sel-btn.active { background: rgba(255,130,30,0.16); border-color: rgba(255,210,110,0.65); color: rgba(255,220,140,1); }
+
+    /* ── PBR Info Bar ──────────────────────────── */
+    #pbr-info {
+      position: fixed; right: 14px; bottom: 70px;
+      background: rgba(2,4,18,0.78); border: 1px solid rgba(255,210,110,0.18);
+      border-radius: 8px; padding: 12px 16px; font-size: 11px;
+      color: rgba(255,255,255,0.75); z-index: 100; min-width: 190px;
+      backdrop-filter: blur(8px); pointer-events: none;
+    }
+    #pbr-info h4 { color: rgba(255,210,110,0.9); font-size: 12px; margin-bottom: 10px; letter-spacing: 0.5px; }
+    .pbr-row { margin: 6px 0; }
+    .pbr-row span { display: block; margin-bottom: 3px; color: rgba(255,255,255,0.55); }
+    .bar-track { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.35s ease; }
+    #bar-metal { background: linear-gradient(90deg,#334466,#88aaff); }
+    #bar-rough  { background: linear-gradient(90deg,#443322,#cc8844); }
+    #bar-color-swatch {
+      width: 100%; height: 14px; border-radius: 3px; margin-bottom: 4px;
+      border: 1px solid rgba(255,255,255,0.1); transition: background 0.35s;
+    }
+
+    /* ── Bottom File Loader ─────────────────────── */
+    #bottom-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      display: flex; justify-content: center; gap: 10px; padding: 12px;
+      background: linear-gradient(transparent, rgba(2,4,18,0.9));
+      z-index: 100;
+    }
+    .file-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,210,110,0.28);
+      color: rgba(255,210,110,0.85);
+      padding: 7px 16px; border-radius: 5px; cursor: pointer;
+      font-size: 12px; transition: all 0.18s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .file-btn:hover { background: rgba(255,210,110,0.12); border-color: rgba(255,210,110,0.55); }
+    .file-btn input { display: none; }
+
+    /* lil-gui position */
+    .lil-gui { position: fixed !important; top: 14px !important; right: 14px !important; z-index: 200 !important; max-height: 82vh !important; overflow-y: auto !important; }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+<div id="loading">
+  <div id="loading-text">INITIALIZING SCENE</div>
+  <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+</div>
+
+<div id="title">
+  <strong>Assignment #3 · Next Gen Rendering</strong><br>
+  Three.js · PBR Shading · WebGL<br>
+  <span style="opacity:0.5;font-size:10px">Drag to orbit · Scroll to zoom</span>
+</div>
+
+<!-- Left selector panel -->
+<div id="selector">
+  <div class="sel-label">Material Preset</div>
+  <button class="sel-btn active" id="btn-original" onclick="applyMatPreset('original')">⚔️ Original PBR</button>
+  <button class="sel-btn" id="btn-gold"     onclick="applyMatPreset('gold')">✨ Gold</button>
+  <button class="sel-btn" id="btn-iron"     onclick="applyMatPreset('iron')">🔩 Brushed Iron</button>
+  <button class="sel-btn" id="btn-stone"    onclick="applyMatPreset('stone')">🪨 Stone</button>
+  <button class="sel-btn" id="btn-obsidian" onclick="applyMatPreset('obsidian')">🌑 Obsidian</button>
+
+  <div class="sel-label">Environment</div>
+  <button class="sel-btn active" id="btn-env-dusk"   onclick="applyEnvPreset('dusk')">🌆 Dusk</button>
+  <button class="sel-btn" id="btn-env-dawn"   onclick="applyEnvPreset('dawn')">🌅 Dawn</button>
+  <button class="sel-btn" id="btn-env-studio" onclick="applyEnvPreset('studio')">💡 Studio</button>
+  <button class="sel-btn" id="btn-env-void"   onclick="applyEnvPreset('void')">🌌 Void</button>
+</div>
+
+<!-- PBR info panel -->
+<div id="pbr-info">
+  <h4>PBR Material — Avg Values</h4>
+  <div class="pbr-row">
+    <span>Base Color</span>
+    <div id="bar-color-swatch" style="background:#3a3060"></div>
+  </div>
+  <div class="pbr-row">
+    <span>Metalness</span>
+    <div class="bar-track"><div class="bar-fill" id="bar-metal" style="width:70%"></div></div>
+  </div>
+  <div class="pbr-row">
+    <span>Roughness</span>
+    <div class="bar-track"><div class="bar-fill" id="bar-rough" style="width:40%"></div></div>
+  </div>
+</div>
+
+<!-- Bottom file loaders -->
+<div id="bottom-bar">
+  <label class="file-btn">
+    📂 Load GLB Model
+    <input type="file" accept=".glb,.gltf" id="glb-input">
+  </label>
+  <label class="file-btn">
+    🌄 Load EXR / HDR Environment
+    <input type="file" accept=".exr,.hdr" id="exr-input">
+  </label>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader }    from 'three/addons/loaders/RGBELoader.js';
+import { EXRLoader }     from 'three/addons/loaders/EXRLoader.js';
+import { GUI }           from 'three/addons/libs/lil-gui.module.min.js';
+
+// ─────────────────────────────────────────────────────────────
+//  RENDERER
+// ─────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled  = true;
+renderer.shadowMap.type     = THREE.PCFSoftShadowMap;
+renderer.toneMapping        = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace   = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+// ─────────────────────────────────────────────────────────────
+//  SCENE & CAMERA
+// ─────────────────────────────────────────────────────────────
+const scene  = new THREE.Scene();
+scene.fog    = new THREE.FogExp2(0x020510, 0.038);
+scene.background = new THREE.Color(0x020510);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 120);
+camera.position.set(0, 2.2, 5.5);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1, 0);
+controls.minDistance = 1;
+controls.maxDistance = 22;
+controls.maxPolarAngle = Math.PI * 0.86;
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.update();
+
+// ─────────────────────────────────────────────────────────────
+//  LIGHTS
+// ─────────────────────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0x112244, 0.45);
+scene.add(ambient);
+
+// Main directional / "sun"
+const sun = new THREE.DirectionalLight(0xffeedd, 3.2);
+sun.position.set(5, 9, 3);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near   =  0.5;
+sun.shadow.camera.far    = 50;
+sun.shadow.camera.left   = sun.shadow.camera.bottom = -12;
+sun.shadow.camera.right  = sun.shadow.camera.top    =  12;
+sun.shadow.bias          = -0.001;
+scene.add(sun);
+
+// Cool rim from behind
+const rim = new THREE.DirectionalLight(0x3366cc, 1.6);
+rim.position.set(-4, 3.5, -6);
+scene.add(rim);
+
+// Subtle fill
+const fill = new THREE.DirectionalLight(0x223355, 0.7);
+fill.position.set(0, 6, -10);
+scene.add(fill);
+
+// Animated flame point light (near character)
+const flamePt = new THREE.PointLight(0xff5500, 3.5, 7);
+flamePt.position.set(0, 1.2, 1.8);
+flamePt.castShadow = true;
+scene.add(flamePt);
+const flameVis = new THREE.Mesh(
+  new THREE.SphereGeometry(0.07, 12, 6),
+  new THREE.MeshBasicMaterial({ color: 0xff5500 })
+);
+flamePt.add(flameVis);
+
+// ─────────────────────────────────────────────────────────────
+//  SHARED PBR MATERIALS
+// ─────────────────────────────────────────────────────────────
+const stoneMat = new THREE.MeshStandardMaterial({
+  color: 0x383848, metalness: 0.04, roughness: 0.90,
+});
+const metalMat = new THREE.MeshStandardMaterial({
+  color: 0x224455, metalness: 0.94, roughness: 0.14,
+});
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x141428, metalness: 0.08, roughness: 0.92,
+});
+
+// ─────────────────────────────────────────────────────────────
+//  FLOOR
+// ─────────────────────────────────────────────────────────────
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50, 1, 1), floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// Subtle grid overlay
+const grid = new THREE.GridHelper(50, 50, 0x141430, 0x0b0b1e);
+grid.position.y = 0.001;
+scene.add(grid);
+
+// ─────────────────────────────────────────────────────────────
+//  ENVIRONMENT GEOMETRY  (all MeshStandardMaterial = PBR)
+// ─────────────────────────────────────────────────────────────
+function makePillar(x, z, h = 3.5) {
+  const g = new THREE.Group();
+  const add = (geo, mat, y) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = y; m.castShadow = m.receiveShadow = true; g.add(m);
+  };
+  // Base plinth
+  add(new THREE.BoxGeometry(0.95, 0.38, 0.95), stoneMat, 0.19);
+  // Shaft
+  add(new THREE.CylinderGeometry(0.20, 0.26, h, 8), stoneMat, 0.38 + h / 2);
+  // Capital
+  add(new THREE.BoxGeometry(0.78, 0.28, 0.78), stoneMat, 0.38 + h + 0.14);
+  // Metal trim ring
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.045, 8, 20), metalMat);
+  ring.position.y = 0.38 + h - 0.05;
+  ring.castShadow = true;
+  g.add(ring);
+  g.position.set(x, 0, z);
+  return g;
+}
+
+const pillarPositions = [[-3.8,-3.2],[3.8,-3.2],[-3.8,4.2],[3.8,4.2],[-6.2,0.5],[6.2,0.5]];
+pillarPositions.forEach(([x,z]) => scene.add(makePillar(x, z, 3.5 + Math.random() * 1.2)));
+
+// Broken / toppled pillar
+const toppled = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 1.4, 8), stoneMat);
+toppled.position.set(-5, 0.55, 2.2);
+toppled.rotation.z = Math.PI * 0.33;
+toppled.castShadow = toppled.receiveShadow = true;
+scene.add(toppled);
+
+// Rubble rocks
+for (let i = 0; i < 14; i++) {
+  const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.4;
+  const r   = 5 + Math.random() * 4.5;
+  const rock = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(0.12 + Math.random() * 0.32, 0),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0.12 + Math.random()*0.06, 0.12 + Math.random()*0.06, 0.17),
+      metalness: 0.02, roughness: 0.9 + Math.random() * 0.1,
+    })
+  );
+  rock.position.set(Math.cos(ang)*r, 0.12 + Math.random()*0.12, Math.sin(ang)*r);
+  rock.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+  rock.castShadow = rock.receiveShadow = true;
+  scene.add(rock);
+}
+
+// Altar / pedestal
+const altar = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.42, 0.95, 8), stoneMat);
+altar.position.set(0, 0.475, -3.8);
+altar.castShadow = altar.receiveShadow = true;
+scene.add(altar);
+
+const altarRing = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.052, 8, 28), metalMat);
+altarRing.position.set(0, 0.98, -3.8);
+altarRing.castShadow = true;
+scene.add(altarRing);
+
+// Glowing orb
+const orbGeo = new THREE.SphereGeometry(0.23, 32, 16);
+const orbMat = new THREE.MeshStandardMaterial({
+  color: 0xff6600, emissive: 0xff3300, emissiveIntensity: 2.2,
+  metalness: 0.0, roughness: 0.0, transparent: true, opacity: 0.92,
+});
+const orb = new THREE.Mesh(orbGeo, orbMat);
+orb.position.set(0, 1.26, -3.8);
+scene.add(orb);
+
+const orbLight = new THREE.PointLight(0xff4400, 2.8, 5);
+orbLight.position.copy(orb.position);
+scene.add(orbLight);
+
+// Decorative chains from altar
+for (let i = 0; i < 4; i++) {
+  const ang  = (i / 4) * Math.PI * 2;
+  const cMat = new THREE.MeshStandardMaterial({ color: 0x1a2233, metalness: 0.96, roughness: 0.12 });
+  for (let j = 0; j < 6; j++) {
+    const link = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.014, 4, 8), cMat);
+    const d = 0.42 + j * 0.15;
+    link.position.set(Math.cos(ang)*d, 0.06 + j*0.04, Math.sin(ang)*d - 3.8);
+    link.rotation.y = j % 2 === 0 ? ang : ang + Math.PI/2;
+    link.castShadow = true;
+    scene.add(link);
+  }
+}
+
+// Sword stuck in ground (decorative PBR prop)
+const bladeMat = new THREE.MeshStandardMaterial({ color: 0x8899aa, metalness: 0.98, roughness: 0.08 });
+const guardMat = new THREE.MeshStandardMaterial({ color: 0x4a3822, metalness: 0.80, roughness: 0.30 });
+const hiltMat  = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, metalness: 0.50, roughness: 0.60 });
+
+const blade  = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.4, 0.015), bladeMat);
+const guard  = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.06, 0.06), guardMat);
+const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), hiltMat);
+const hilt   = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.35, 8), hiltMat);
+
+const swordGroup = new THREE.Group();
+blade.position.y  = 0.7;   blade.castShadow  = true;
+guard.position.y  = 0.06;  guard.castShadow  = true;
+hilt.position.y   = -0.22; hilt.castShadow   = true;
+pommel.position.y = -0.42; pommel.castShadow = true;
+swordGroup.add(blade, guard, hilt, pommel);
+swordGroup.position.set(2.5, 0.5, 0.5);
+swordGroup.rotation.z = Math.PI * 0.08;
+scene.add(swordGroup);
+
+// ─────────────────────────────────────────────────────────────
+//  LOADERS
+// ─────────────────────────────────────────────────────────────
+const gltfLoader = new GLTFLoader();
+const rgbeLoader  = new RGBELoader();
+const exrLoader   = new EXRLoader();
+
+let characterModel = null;
+const originalMats = new Map();   // Mesh → original material snapshot
+
+function setLoadBar(pct) {
+  document.getElementById('loading-bar').style.width = pct + '%';
+}
+function showLoading(msg) {
+  const el = document.getElementById('loading');
+  document.getElementById('loading-text').textContent = msg;
+  el.classList.remove('hidden');
+}
+function hideLoading() {
+  document.getElementById('loading').classList.add('hidden');
+}
+
+function autoFit(model) {
+  let box  = new THREE.Box3().setFromObject(model);
+  const sz = box.getSize(new THREE.Vector3());
+  const sc = 2.6 / Math.max(sz.x, sz.y, sz.z);
+  model.scale.setScalar(sc);
+  box = new THREE.Box3().setFromObject(model);
+  const ctr = box.getCenter(new THREE.Vector3());
+  model.position.x -= ctr.x;
+  model.position.z -= ctr.z;
+  model.position.y -= box.min.y;
+}
+
+function loadGLB(url) {
+  showLoading('LOADING MODEL');
+  setLoadBar(10);
+  if (characterModel) { scene.remove(characterModel); characterModel = null; originalMats.clear(); }
+
+  gltfLoader.load(url, (gltf) => {
+    setLoadBar(90);
+    characterModel = gltf.scene;
+    autoFit(characterModel);
+
+    characterModel.traverse(n => {
+      if (!n.isMesh) return;
+      n.castShadow = n.receiveShadow = true;
+      // Store original materials as clones
+      if (Array.isArray(n.material)) {
+        originalMats.set(n, n.material.map(m => m.clone()));
+      } else {
+        originalMats.set(n, n.material.clone());
+      }
+      // Boost env map intensity for PBR reflections
+      const mats = Array.isArray(n.material) ? n.material : [n.material];
+      mats.forEach(m => { if (m.isMeshStandardMaterial) m.envMapIntensity = 1.6; });
+    });
+
+    scene.add(characterModel);
+    updatePBRInfo();
+    setLoadBar(100);
+    setTimeout(hideLoading, 300);
+  }, (prog) => {
+    if (prog.total) setLoadBar(10 + 75 * (prog.loaded / prog.total));
+  }, (err) => {
+    console.warn('GLB load error:', err);
+    hideLoading();
+  });
+}
+
+function loadEXR(url, filename) {
+  showLoading('LOADING ENVIRONMENT');
+  setLoadBar(20);
+
+  // Pick the right loader: EXRLoader for .exr, RGBELoader for .hdr
+  const isEXR = (filename || url).toLowerCase().endsWith('.exr');
+  const envLoader = isEXR ? exrLoader : rgbeLoader;
+
+  envLoader.load(url, (tex) => {
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    scene.environment = tex;
+    scene.background  = tex;
+    renderer.toneMappingExposure = 0.75;
+    guiParams.exposure = 0.75;
+    setLoadBar(100);
+    setTimeout(hideLoading, 300);
+  }, (prog) => {
+    if (prog.total) setLoadBar(20 + 70 * (prog.loaded / prog.total));
+  }, (err) => {
+    console.warn('Env load error:', err);
+    hideLoading();
+  });
+}
+
+// Auto-load when served from the same directory as the asset files
+function silentLoad(url, fn) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('HEAD', url, true);
+  xhr.onload = () => { if (xhr.status < 400) fn(url); };
+  xhr.onerror = () => {};
+  try { xhr.send(); } catch(e) {}
+}
+silentLoad('./fallen_paladin_in_corrupted_black_plate_armor.glb', loadGLB);
+silentLoad('./citrus_orchard_road_puresky_4k.exr',                loadEXR);
+
+// File input handlers
+document.getElementById('glb-input').addEventListener('change', e => {
+  if (e.target.files[0]) loadGLB(URL.createObjectURL(e.target.files[0]));
+});
+document.getElementById('exr-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) loadEXR(URL.createObjectURL(file), file.name);
+});
+
+// ─────────────────────────────────────────────────────────────
+//  PBR INFO PANEL
+// ─────────────────────────────────────────────────────────────
+function updatePBRInfo() {
+  if (!characterModel) return;
+  let totM = 0, totR = 0, n = 0;
+  const col = new THREE.Color();
+
+  characterModel.traverse(obj => {
+    if (!obj.isMesh) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    mats.forEach(m => {
+      if (!m.isMeshStandardMaterial) return;
+      totM += m.metalness; totR += m.roughness; col.add(m.color); n++;
+    });
+  });
+  if (!n) return;
+  col.multiplyScalar(1 / n);
+  document.getElementById('bar-metal').style.width = ((totM/n)*100).toFixed(1) + '%';
+  document.getElementById('bar-rough').style.width  = ((totR/n)*100).toFixed(1) + '%';
+  document.getElementById('bar-color-swatch').style.background =
+    `rgb(${Math.round(col.r*255)},${Math.round(col.g*255)},${Math.round(col.b*255)})`;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  MATERIAL PRESETS  (demonstrates PBR range)
+// ─────────────────────────────────────────────────────────────
+const matPresets = {
+  original: null,
+  gold:     { color:0xc8a43a, metalness:1.00, roughness:0.10, emissive:0x221100, emissInt:0.25 },
+  iron:     { color:0x8899aa, metalness:0.95, roughness:0.35, emissive:0x000000, emissInt:0.00 },
+  stone:    { color:0x7a7a6a, metalness:0.00, roughness:0.97, emissive:0x000000, emissInt:0.00 },
+  obsidian: { color:0x060612, metalness:0.80, roughness:0.04, emissive:0x110022, emissInt:0.50 },
+};
+
+window.applyMatPreset = function(name) {
+  // Button active state
+  document.querySelectorAll('#selector .sel-btn').forEach(b => {
+    if (!b.id.startsWith('btn-env')) b.classList.remove('active');
+  });
+  const btn = document.getElementById('btn-' + name);
+  if (btn) btn.classList.add('active');
+
+  if (!characterModel) return;
+  const p = matPresets[name];
+
+  characterModel.traverse(n => {
+    if (!n.isMesh) return;
+    if (!p) {
+      // Restore originals
+      const orig = originalMats.get(n);
+      if (!orig) return;
+      n.material = Array.isArray(orig) ? orig.map(m => m.clone()) : orig.clone();
+    } else {
+      const apply = m => {
+        if (!m.isMeshStandardMaterial) return;
+        m.color.setHex(p.color);
+        m.metalness = p.metalness;
+        m.roughness = p.roughness;
+        m.emissive.setHex(p.emissive);
+        m.emissiveIntensity = p.emissInt;
+        m.envMapIntensity   = 1.6;
+        m.needsUpdate       = true;
+      };
+      if (Array.isArray(n.material)) n.material.forEach(apply); else apply(n.material);
+    }
+  });
+  updatePBRInfo();
+};
+
+// ─────────────────────────────────────────────────────────────
+//  ENVIRONMENT PRESETS
+// ─────────────────────────────────────────────────────────────
+const envPresets = {
+  dusk:   { sunCol:0xffeedd, sunInt:3.2, rimCol:0x3366cc, rimInt:1.6, ambCol:0x112244, ambInt:0.45, ptCol:0xff5500, ptInt:3.5, exp:1.0, fogCol:0x020510 },
+  dawn:   { sunCol:0xff8833, sunInt:5.5, rimCol:0xffaa55, rimInt:2.2, ambCol:0x332211, ambInt:0.85, ptCol:0xff8800, ptInt:2.0, exp:1.2, fogCol:0x180904 },
+  studio: { sunCol:0xffffff, sunInt:7.0, rimCol:0xffffff, rimInt:3.5, ambCol:0x555555, ambInt:1.20, ptCol:0xffaa44, ptInt:2.5, exp:1.0, fogCol:0x101010 },
+  void:   { sunCol:0x6644aa, sunInt:2.0, rimCol:0x220044, rimInt:1.0, ambCol:0x110022, ambInt:0.20, ptCol:0xaa00ff, ptInt:4.0, exp:0.8, fogCol:0x050008 },
+};
+
+window.applyEnvPreset = function(name) {
+  document.querySelectorAll('[id^="btn-env-"]').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('btn-env-' + name);
+  if (btn) btn.classList.add('active');
+
+  const p = envPresets[name]; if (!p) return;
+  sun.color.setHex(p.sunCol);  sun.intensity     = p.sunInt;
+  rim.color.setHex(p.rimCol);  rim.intensity     = p.rimInt;
+  ambient.color.setHex(p.ambCol); ambient.intensity = p.ambInt;
+  flamePt.color.setHex(p.ptCol); flameVis.material.color.setHex(p.ptCol);
+  guiParams.ptColor      = '#' + p.ptCol.toString(16).padStart(6,'0');
+  guiParams.ptIntensity  = p.ptInt;
+  renderer.toneMappingExposure = p.exp;
+  scene.fog.color.setHex(p.fogCol);
+
+  guiParams.sunIntensity = p.sunInt;
+  guiParams.rimIntensity = p.rimInt;
+  guiParams.ambIntensity = p.ambInt;
+  guiParams.exposure     = p.exp;
+};
+
+// ─────────────────────────────────────────────────────────────
+//  GUI  (lil-gui)
+// ─────────────────────────────────────────────────────────────
+const guiParams = {
+  // Directional light
+  sunX: sun.position.x, sunY: sun.position.y, sunZ: sun.position.z,
+  sunIntensity: sun.intensity, sunColor: '#ffeedd',
+  // Rim
+  rimIntensity: rim.intensity, rimColor: '#3366cc',
+  // Ambient
+  ambIntensity: ambient.intensity,
+  // Point (flame)
+  ptX: flamePt.position.x, ptY: flamePt.position.y, ptZ: flamePt.position.z,
+  ptIntensity: flamePt.intensity, ptColor: '#ff5500',
+  // Rendering
+  exposure: renderer.toneMappingExposure,
+  // Floor PBR
+  floorColor: '#141428', floorMetal: floorMat.metalness, floorRough: floorMat.roughness,
+  // Pillars PBR
+  stoneMetal: stoneMat.metalness, stoneRough: stoneMat.roughness,
+  // Metal trim PBR
+  trimMetal: metalMat.metalness, trimRough: metalMat.roughness,
+};
+
+const gui = new GUI({ title: '⚙️ Rendering Controls' });
+
+const fSun = gui.addFolder('☀️ Directional Light (Sun)');
+fSun.add(guiParams,'sunX',-20,20,0.1).name('Pos X').onChange(v => sun.position.x = v);
+fSun.add(guiParams,'sunY', 0,20,0.1).name('Pos Y').onChange(v => sun.position.y = v);
+fSun.add(guiParams,'sunZ',-20,20,0.1).name('Pos Z').onChange(v => sun.position.z = v);
+fSun.add(guiParams,'sunIntensity',0,12,0.1).name('Intensity').onChange(v => sun.intensity = v);
+fSun.addColor(guiParams,'sunColor').name('Color').onChange(v => sun.color.set(v));
+
+const fRim = gui.addFolder('💙 Rim Light');
+fRim.add(guiParams,'rimIntensity',0,6,0.1).name('Intensity').onChange(v => rim.intensity = v);
+fRim.addColor(guiParams,'rimColor').name('Color').onChange(v => rim.color.set(v));
+fRim.close();
+
+const fAmb = gui.addFolder('🌫️ Ambient Light');
+fAmb.add(guiParams,'ambIntensity',0,3,0.05).name('Intensity').onChange(v => ambient.intensity = v);
+fAmb.close();
+
+const fPt = gui.addFolder('🔥 Point Light');
+fPt.add(guiParams,'ptX',-6,6,0.1).name('Pos X').onChange(v => flamePt.position.x = v);
+fPt.add(guiParams,'ptY', 0,6,0.1).name('Pos Y').onChange(v => flamePt.position.y = v);
+fPt.add(guiParams,'ptZ',-6,6,0.1).name('Pos Z').onChange(v => flamePt.position.z = v);
+fPt.add(guiParams,'ptIntensity',0,12,0.1).name('Intensity').onChange(v => guiParams.ptIntensity = v);
+fPt.addColor(guiParams,'ptColor').name('Color').onChange(v => { flamePt.color.set(v); flameVis.material.color.set(v); });
+
+const fEnv = gui.addFolder('🌍 Tone Mapping');
+fEnv.add(guiParams,'exposure',0.1,3,0.05).name('Exposure').onChange(v => renderer.toneMappingExposure = v);
+
+const fFloor = gui.addFolder('🪨 Floor PBR');
+fFloor.addColor(guiParams,'floorColor').name('Base Color').onChange(v => floorMat.color.set(v));
+fFloor.add(guiParams,'floorMetal',0,1,0.01).name('Metalness').onChange(v => floorMat.metalness = v);
+fFloor.add(guiParams,'floorRough', 0,1,0.01).name('Roughness').onChange(v => floorMat.roughness = v);
+fFloor.close();
+
+const fStone = gui.addFolder('🏛️ Pillars PBR');
+fStone.add(guiParams,'stoneMetal',0,1,0.01).name('Metalness').onChange(v => stoneMat.metalness = v);
+fStone.add(guiParams,'stoneRough', 0,1,0.01).name('Roughness').onChange(v => stoneMat.roughness = v);
+fStone.close();
+
+const fTrim = gui.addFolder('⚙️ Metal Trim PBR');
+fTrim.add(guiParams,'trimMetal',0,1,0.01).name('Metalness').onChange(v => metalMat.metalness = v);
+fTrim.add(guiParams,'trimRough', 0,1,0.01).name('Roughness').onChange(v => metalMat.roughness = v);
+fTrim.close();
+
+// ─────────────────────────────────────────────────────────────
+//  ANIMATION LOOP
+// ─────────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  // Orb hover & pulse
+  orb.position.y = 1.26 + Math.sin(t * 1.9) * 0.07;
+  orbLight.position.copy(orb.position);
+  orbMat.emissiveIntensity = 1.8 + Math.sin(t * 2.7) * 0.7;
+  orbLight.intensity       = 2.5 + Math.sin(t * 2.7) * 0.9;
+
+  // Point light flicker (multi-frequency = realistic fire)
+  flamePt.intensity = guiParams.ptIntensity * (0.86 + Math.sin(t*9.1)*0.09 + Math.sin(t*14.3)*0.05);
+
+  // Rotate altar ring
+  altarRing.rotation.y = t * 0.55;
+
+  // Sword idle sway
+  swordGroup.rotation.z = Math.PI * 0.08 + Math.sin(t * 0.6) * 0.012;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ─────────────────────────────────────────────────────────────
+//  RESIZE
+// ─────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ─────────────────────────────────────────────────────────────
+//  INITIAL HIDE
+// ─────────────────────────────────────────────────────────────
+setTimeout(hideLoading, 900);
+</script>
+</body>
+</html>
