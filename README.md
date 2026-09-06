@@ -32,3 +32,7 @@ https://apichaikraiplong.github.io/gpuMesh.html
 show Model Knight with Vertex color
 
 https://apichaikraiplong.github.io/gpuMesh_Vertex_UV_VertexColor.html
+
+show Web-Page-PBR-Shader
+
+https://apichaikraiplong.github.io/WebGL_PBR_pbr.html
