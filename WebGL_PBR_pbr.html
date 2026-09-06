@@ -475,8 +475,8 @@ function silentLoad(url, fn) {
   xhr.onerror = () => {};
   try { xhr.send(); } catch(e) {}
 }
-silentLoad('./fallen_paladin_in_corrupted_black_plate_armor.glb', loadGLB);
-silentLoad('./citrus_orchard_road_puresky_4k.exr',                loadEXR);
+silentLoad('https://github.com/Apichaikraiplong/Apichaikraiplong.github.io/releases/latest/download/fallen_paladin_in_corrupted_black_plate_armor.glb', loadGLB);
+silentLoad('https://github.com/Apichaikraiplong/Apichaikraiplong.github.io/releases/latest/download/citrus_orchard_road_puresky_4k.exr', loadEXR);
 
 // File input handlers
 document.getElementById('glb-input').addEventListener('change', e => {
