@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Next Gen Rendering — PBR Robot Viewer</title>
+<style>
+  :root{
+    --bg:#0c0d0f;
+    --panel:#16181c;
+    --panel-line:#2a2d33;
+    --ink:#e9e9e7;
+    --ink-dim:#9a9da3;
+    --accent:#c98a4b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;overflow:hidden;}
+  #canvas-wrap{position:fixed;inset:0;}
+  canvas{display:block;outline:none;}
+
+  #titlebar{
+    position:fixed;top:0;left:0;right:0;padding:14px 18px;
+    display:flex;justify-content:space-between;align-items:flex-start;
+    pointer-events:none;z-index:5;
+    background:linear-gradient(to bottom, rgba(0,0,0,.55), transparent);
+  }
+  #titlebar h1{font-size:15px;font-weight:600;margin:0 0 2px;letter-spacing:.2px;}
+  #titlebar p{font-size:12px;margin:0;color:var(--ink-dim);max-width:480px;line-height:1.5;}
+
+  #hint{
+    position:fixed;left:18px;bottom:16px;font-size:11.5px;color:var(--ink-dim);
+    background:rgba(15,16,18,.55);border:1px solid var(--panel-line);
+    border-radius:8px;padding:8px 12px;line-height:1.7;pointer-events:none;
+    max-width:300px;z-index:5;
+  }
+  #hint b{color:var(--ink);}
+
+  #selected-tag{
+    position:fixed;left:18px;top:64px;font-size:12px;
+    background:rgba(15,16,18,.7);border:1px solid var(--panel-line);
+    border-radius:8px;padding:6px 12px;color:var(--accent);
+    display:none;z-index:5;letter-spacing:.2px;
+  }
+
+  #loading{
+    position:fixed;inset:0;display:flex;flex-direction:column;gap:10px;
+    align-items:center;justify-content:center;background:var(--bg);z-index:20;
+    transition:opacity .5s ease;
+  }
+  #loading .bar{width:220px;height:2px;background:#26282d;overflow:hidden;border-radius:2px;}
+  #loading .fill{height:100%;width:0%;background:var(--accent);transition:width .2s ease;}
+  #loading span{font-size:12px;color:var(--ink-dim);letter-spacing:.3px;}
+
+  /* lil-gui theme tweaks */
+  .lil-gui{
+    --background-color:#16181c;
+    --widget-color:#24262b;
+    --focus-color:var(--accent);
+    --hover-color:#2c2f35;
+    --number-color:#d9a06b;
+    --font-size:11.5px;
+    --input-font-size:11.5px;
+    --title-background-color:#1b1d21;
+    --widget-height:20px;
+    --spacing:5px;
+    --font-family:'Segoe UI',system-ui,sans-serif;
+    --border-radius:8px;
+    top:14px !important; right:14px !important;
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-wrap"></div>
+
+<div id="titlebar">
+  <div>
+    <h1>Next Gen Rendering — PBR Viewer</h1>
+    <p>WebGL / Three.js · glTF robot ทำงานด้วย PBR Shader (Base Color / Metallic / Roughness) พร้อม Image-Based Lighting จาก HDRI skybox</p>
+  </div>
+</div>
+
+<div id="selected-tag"></div>
+
+<div id="hint">
+  <b>ลาก</b> เพื่อหมุนกล้อง · <b>สกอลล์</b> เพื่อซูม<br/>
+  <b>คลิก</b> วัตถุ เพื่อเลือกและแก้ Base Color / Metallic / Roughness<br/>
+  <b>ลากทรงกลมสีทอง</b> เพื่อย้ายตำแหน่งแหล่งกำเนิดแสง
+</div>
+
+<div id="loading">
+  <div class="bar"><div class="fill" id="loading-fill"></div></div>
+  <span id="loading-text">Loading assets…</span>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19/dist/lil-gui.esm.min.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { DragControls } from 'three/addons/controls/DragControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+import GUI from 'lil-gui';
+
+/* ---------------------------------------------------------------------
+   ASSET PATHS — relative, so this works unmodified on GitHub Pages
+--------------------------------------------------------------------- */
+const ROBOT_URL = 'assets/robot.glb';
+const HDRI_URL  = 'assets/studio.exr';
+
+/* ---------------------------------------------------------------------
+   RENDERER / SCENE / CAMERA
+--------------------------------------------------------------------- */
+const wrap = document.getElementById('canvas-wrap');
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+wrap.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 200);
+camera.position.set(3.4, 2.1, 4.4);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 1.2;
+controls.maxDistance = 20;
+controls.target.set(0, 0.9, 0);
+controls.maxPolarAngle = Math.PI * 0.53;
+controls.update();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ---------------------------------------------------------------------
+   LOADING PROGRESS
+--------------------------------------------------------------------- */
+const loadingEl = document.getElementById('loading');
+const fillEl = document.getElementById('loading-fill');
+const textEl = document.getElementById('loading-text');
+const loadMgr = new THREE.LoadingManager();
+loadMgr.onProgress = (url, loaded, total) => {
+  const pct = Math.round((loaded / total) * 100);
+  fillEl.style.width = pct + '%';
+  textEl.textContent = 'Loading assets… ' + pct + '%';
+};
+loadMgr.onLoad = () => {
+  loadingEl.style.opacity = '0';
+  setTimeout(() => loadingEl.remove(), 550);
+};
+
+/* ---------------------------------------------------------------------
+   ENVIRONMENT / SKYBOX (HDRI, .exr)
+--------------------------------------------------------------------- */
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+
+const envSettings = {
+  showBackground: true,
+  exposure: 1.0,
+  environmentIntensity: 1.0,
+  backgroundBlur: 0.0,
+};
+
+let envMap = null;   // PMREM-processed texture -> used for lighting/reflections
+let bgTex = null;     // raw equirectangular texture -> used for the visible skybox
+new EXRLoader(loadMgr).load(HDRI_URL, (tex) => {
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  bgTex = tex;
+  envMap = pmrem.fromEquirectangular(tex).texture;
+
+  scene.environment = envMap;
+  scene.background = envSettings.showBackground ? bgTex : new THREE.Color(0x0c0d0f);
+  if ('environmentIntensity' in scene) scene.environmentIntensity = envSettings.environmentIntensity;
+  if ('backgroundIntensity' in scene) scene.backgroundIntensity = envSettings.environmentIntensity;
+});
+
+/* ---------------------------------------------------------------------
+   GROUND (PBR floor)
+--------------------------------------------------------------------- */
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x8d8f93, metalness: 0.05, roughness: 0.55, envMapIntensity: 1.0
+});
+const floor = new THREE.Mesh(new THREE.CircleGeometry(6, 64), floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+/* Studio pedestal directly under the robot */
+const pedestalMat = new THREE.MeshStandardMaterial({
+  color: 0x232427, metalness: 0.2, roughness: 0.35, envMapIntensity: 1.0
+});
+const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.15, 0.14, 64), pedestalMat);
+pedestal.position.y = 0.07;
+pedestal.castShadow = true;
+pedestal.receiveShadow = true;
+scene.add(pedestal);
+
+/* ---------------------------------------------------------------------
+   ENVIRONMENT STRUCTURES (two contrasting PBR props, flank the robot)
+--------------------------------------------------------------------- */
+const structMetalMat = new THREE.MeshStandardMaterial({
+  color: 0xb9bec4, metalness: 1.0, roughness: 0.18, envMapIntensity: 1.0
+});
+const structDielectricMat = new THREE.MeshStandardMaterial({
+  color: 0x9a5a3a, metalness: 0.0, roughness: 0.75, envMapIntensity: 1.0
+});
+
+const pillarA = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1.7, 24), structMetalMat);
+pillarA.position.set(-1.9, 0.85, -0.6);
+pillarA.castShadow = true; pillarA.receiveShadow = true;
+scene.add(pillarA);
+
+const pillarB = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.1, 0.42), structDielectricMat);
+pillarB.position.set(1.9, 0.55, -0.9);
+pillarB.castShadow = true; pillarB.receiveShadow = true;
+scene.add(pillarB);
+
+/* ---------------------------------------------------------------------
+   PBR REFERENCE CHART (toggle) — clearly demonstrates metallic/roughness
+--------------------------------------------------------------------- */
+const refGroup = new THREE.Group();
+refGroup.visible = false;
+const REF_N = 6;
+for (let i = 0; i < REF_N; i++) {
+  const t = i / (REF_N - 1);
+  const m = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 48, 48),
+    new THREE.MeshStandardMaterial({ color: 0xcfcfcf, metalness: 1.0, roughness: t, envMapIntensity: 1.0 })
+  );
+  m.position.set(-1.6 + i * 0.42, 1.9, -2.4);
+  m.castShadow = true;
+  refGroup.add(m);
+}
+for (let i = 0; i < REF_N; i++) {
+  const t = i / (REF_N - 1);
+  const m = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 48, 48),
+    new THREE.MeshStandardMaterial({ color: 0xcc7a3d, metalness: t, roughness: 0.35, envMapIntensity: 1.0 })
+  );
+  m.position.set(-1.6 + i * 0.42, 1.5, -2.4);
+  m.castShadow = true;
+  refGroup.add(m);
+}
+scene.add(refGroup);
+
+/* ---------------------------------------------------------------------
+   MOVABLE KEY LIGHT + drag gizmo
+--------------------------------------------------------------------- */
+const keyLight = new THREE.PointLight(0xfff2df, 40, 0, 2);
+keyLight.position.set(2.4, 3.2, 2.0);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.bias = -0.002;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x8fb3ff, 0.35);
+fillLight.position.set(-3, 2, -2);
+scene.add(fillLight);
+
+const gizmo = new THREE.Mesh(
+  new THREE.SphereGeometry(0.09, 24, 24),
+  new THREE.MeshBasicMaterial({ color: 0xffcf87 })
+);
+gizmo.position.copy(keyLight.position);
+scene.add(gizmo);
+
+const dragControls = new DragControls([gizmo], camera, renderer.domElement);
+dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
+dragControls.addEventListener('dragend', () => { controls.enabled = true; });
+dragControls.addEventListener('drag', () => {
+  keyLight.position.copy(gizmo.position);
+  lightParams.x = gizmo.position.x;
+  lightParams.y = gizmo.position.y;
+  lightParams.z = gizmo.position.z;
+});
+
+/* ---------------------------------------------------------------------
+   MATERIAL SELECTION SYSTEM
+   Every "editable entry" = { name, material, meshes[] }
+--------------------------------------------------------------------- */
+const entries = [];               // selectable material groups
+const pickableMeshes = [];        // meshes -> entry index (userData.entryIndex)
+
+function registerEntry(name, material, meshes) {
+  const idx = entries.length;
+  entries.push({ name, material, meshes });
+  meshes.forEach(mesh => {
+    mesh.userData.entryIndex = idx;
+    pickableMeshes.push(mesh);
+  });
+  return idx;
+}
+
+registerEntry('Floor', floorMat, [floor]);
+registerEntry('Pedestal', pedestalMat, [pedestal]);
+registerEntry('Structure — Metal', structMetalMat, [pillarA]);
+registerEntry('Structure — Dielectric', structDielectricMat, [pillarB]);
+
+/* ---------------------------------------------------------------------
+   LOAD ROBOT (.glb)
+--------------------------------------------------------------------- */
+const draco = new DRACOLoader();
+draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/');
+const gltfLoader = new GLTFLoader(loadMgr);
+gltfLoader.setDRACOLoader(draco);
+
+let robotRoot = null;
+
+gltfLoader.load(ROBOT_URL, (gltf) => {
+  robotRoot = gltf.scene;
+
+  // Center on X/Z, sit on the ground (y=0), normalize scale.
+  const box = new THREE.Box3().setFromObject(robotRoot);
+  const size = new THREE.Vector3(); box.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const scale = 1.7 / maxDim;
+  robotRoot.scale.setScalar(scale);
+
+  const box2 = new THREE.Box3().setFromObject(robotRoot);
+  robotRoot.position.x -= (box2.min.x + box2.max.x) / 2;
+  robotRoot.position.z -= (box2.min.z + box2.max.z) / 2;
+  robotRoot.position.y -= box2.min.y - 0.14; // rest on pedestal top
+
+  // Dedupe materials by uuid -> one clone per unique material,
+  // shared across every mesh that originally referenced it.
+  const cloneCache = new Map();
+  let matCounter = 1;
+
+  robotRoot.traverse((obj) => {
+    if (!obj.isMesh) return;
+    obj.castShadow = true;
+    obj.receiveShadow = true;
+
+    const assignClone = (mat) => {
+      if (!cloneCache.has(mat.uuid)) {
+        const clone = mat.clone();
+        if (clone.envMapIntensity === undefined) clone.envMapIntensity = 1.0;
+        cloneCache.set(mat.uuid, {
+          clone,
+          name: mat.name && mat.name.trim() ? mat.name : `Robot Material ${matCounter++}`,
+          meshes: []
+        });
+      }
+      const rec = cloneCache.get(mat.uuid);
+      rec.meshes.push(obj);
+      return rec.clone;
+    };
+
+    if (Array.isArray(obj.material)) {
+      obj.material = obj.material.map(assignClone);
+    } else {
+      obj.material = assignClone(obj.material);
+    }
+  });
+
+  cloneCache.forEach((rec) => registerEntry(rec.name, rec.clone, rec.meshes));
+
+  scene.add(robotRoot);
+  buildMaterialDropdown();
+});
+
+/* ---------------------------------------------------------------------
+   SELECTION HIGHLIGHT
+--------------------------------------------------------------------- */
+let selectedIndex = -1;
+const highlightSaved = new Map(); // material -> {emissive, emissiveIntensity}
+
+function clearHighlight() {
+  if (selectedIndex < 0) return;
+  const entry = entries[selectedIndex];
+  const saved = highlightSaved.get(entry.material);
+  if (saved) {
+    entry.material.emissive.copy(saved.emissive);
+    entry.material.emissiveIntensity = saved.emissiveIntensity;
+  }
+  highlightSaved.delete(entry.material);
+}
+
+function applyHighlight(idx) {
+  const entry = entries[idx];
+  if (!highlightSaved.has(entry.material)) {
+    highlightSaved.set(entry.material, {
+      emissive: entry.material.emissive.clone(),
+      emissiveIntensity: entry.material.emissiveIntensity ?? 1.0,
+    });
+  }
+  entry.material.emissive.set(0x50381a);
+  entry.material.emissiveIntensity = 0.9;
+}
+
+const selectedTag = document.getElementById('selected-tag');
+
+function selectEntry(idx) {
+  clearHighlight();
+  selectedIndex = idx;
+  if (idx >= 0) {
+    applyHighlight(idx);
+    selectedTag.style.display = 'block';
+    selectedTag.textContent = 'Selected: ' + entries[idx].name;
+    refreshMaterialPanel();
+  } else {
+    selectedTag.style.display = 'none';
+  }
+}
+
+/* Raycasting click-select (drag-tolerant) */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let downPos = null;
+
+renderer.domElement.addEventListener('pointerdown', (e) => { downPos = { x: e.clientX, y: e.clientY }; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downPos) return;
+  const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y;
+  downPos = null;
+  if (Math.hypot(dx, dy) > 6) return; // was a drag, not a click
+
+  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickableMeshes, false);
+  if (hits.length && hits[0].object.userData.entryIndex !== undefined) {
+    selectEntry(hits[0].object.userData.entryIndex);
+  } else {
+    selectEntry(-1);
+  }
+});
+
+/* ---------------------------------------------------------------------
+   GUI (lil-gui)
+--------------------------------------------------------------------- */
+const gui = new GUI({ title: 'PBR Controls' });
+
+// Environment -----------------------------------------------------------
+const envFolder = gui.addFolder('Environment / Skybox');
+envFolder.add(envSettings, 'showBackground').name('Show HDRI background').onChange(v => {
+  if (!bgTex) return;
+  scene.background = v ? bgTex : new THREE.Color(0x0c0d0f);
+});
+envFolder.add(envSettings, 'exposure', 0.1, 3, 0.01).name('Exposure').onChange(v => {
+  renderer.toneMappingExposure = v;
+});
+envFolder.add(envSettings, 'environmentIntensity', 0, 3, 0.01).name('Env. Intensity').onChange(v => {
+  if ('environmentIntensity' in scene) scene.environmentIntensity = v;
+  if ('backgroundIntensity' in scene) scene.backgroundIntensity = v;
+});
+
+// Light -------------------------------------------------------------------
+const lightFolder = gui.addFolder('Key Light (drag the gold sphere)');
+const lightParams = {
+  x: keyLight.position.x, y: keyLight.position.y, z: keyLight.position.z,
+  intensity: keyLight.intensity, color: '#fff2df', showGizmo: true,
+};
+['x', 'y', 'z'].forEach(axis => {
+  lightFolder.add(lightParams, axis, -8, 8, 0.01).name('Position ' + axis.toUpperCase()).onChange(() => {
+    keyLight.position.set(lightParams.x, lightParams.y, lightParams.z);
+    gizmo.position.copy(keyLight.position);
+  }).listen();
+});
+lightFolder.add(lightParams, 'intensity', 0, 150, 0.5).name('Intensity').onChange(v => keyLight.intensity = v);
+lightFolder.addColor(lightParams, 'color').name('Color').onChange(v => keyLight.color.set(v));
+lightFolder.add(lightParams, 'showGizmo').name('Show gizmo').onChange(v => gizmo.visible = v);
+
+// Selected material ---------------------------------------------------------
+const matFolder = gui.addFolder('Selected Material');
+const matParams = { object: '', color: '#ffffff', metalness: 0, roughness: 1, envMapIntensity: 1 };
+
+const colorCtrl = matFolder.addColor(matParams, 'color').name('Base Color').onChange(v => {
+  if (selectedIndex >= 0) entries[selectedIndex].material.color.set(v);
+});
+const metalCtrl = matFolder.add(matParams, 'metalness', 0, 1, 0.001).name('Metallic').onChange(v => {
+  if (selectedIndex >= 0) entries[selectedIndex].material.metalness = v;
+});
+const roughCtrl = matFolder.add(matParams, 'roughness', 0, 1, 0.001).name('Roughness').onChange(v => {
+  if (selectedIndex >= 0) entries[selectedIndex].material.roughness = v;
+});
+const envIntCtrl = matFolder.add(matParams, 'envMapIntensity', 0, 3, 0.01).name('Env Map Intensity').onChange(v => {
+  if (selectedIndex >= 0) entries[selectedIndex].material.envMapIntensity = v;
+});
+matFolder.add({ deselect: () => selectEntry(-1) }, 'deselect').name('Deselect');
+
+// Dropdown is rebuilt (destroy + re-add) whenever the entry list grows,
+// e.g. once the robot's materials finish loading. It always lands at the
+// bottom of the folder, so its position never jumps around unexpectedly.
+let dropdownCtrl = null;
+function buildMaterialDropdown() {
+  if (dropdownCtrl) dropdownCtrl.destroy();
+  const names = {};
+  entries.forEach((e, i) => names[e.name] = i);
+  dropdownCtrl = matFolder.add(matParams, 'object', names).name('Object').onChange(v => selectEntry(Number(v)));
+}
+buildMaterialDropdown();
+
+function refreshMaterialPanel() {
+  if (selectedIndex < 0) return;
+  const m = entries[selectedIndex].material;
+  matParams.object = String(selectedIndex);
+  matParams.color = '#' + m.color.getHexString();
+  matParams.metalness = m.metalness;
+  matParams.roughness = m.roughness;
+  matParams.envMapIntensity = m.envMapIntensity ?? 1;
+  [dropdownCtrl, colorCtrl, metalCtrl, roughCtrl, envIntCtrl].forEach(c => c && c.updateDisplay());
+}
+
+// Scene ---------------------------------------------------------------------
+const sceneFolder = gui.addFolder('Scene');
+const sceneParams = { autoRotate: false, showReference: false };
+sceneFolder.add(sceneParams, 'autoRotate').name('Auto-rotate view').onChange(v => controls.autoRotate = v);
+sceneFolder.add(sceneParams, 'showReference').name('Show PBR reference chart').onChange(v => refGroup.visible = v);
+sceneFolder.add({ reset: () => { camera.position.set(3.4, 2.1, 4.4); controls.target.set(0, 0.9, 0); } }, 'reset').name('Reset camera');
+
+controls.autoRotate = false;
+controls.autoRotateSpeed = 1.1;
+
+/* ---------------------------------------------------------------------
+   RENDER LOOP
+--------------------------------------------------------------------- */
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
