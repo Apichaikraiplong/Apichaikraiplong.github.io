@@ -36,3 +36,7 @@ https://apichaikraiplong.github.io/gpuMesh_Vertex_UV_VertexColor.html
 show Web-Page-PBR-Shader(แบบใส่ไฟล์แยก)
 
 https://apichaikraiplong.github.io/WebGL_PBR_pbr.html
+
+show Web-Page-PBR-Shader(แบบตัวเต็ม)
+
+https://apichaikraiplong.github.io/project/
