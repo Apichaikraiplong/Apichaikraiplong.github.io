@@ -40,3 +40,7 @@ https://apichaikraiplong.github.io/WebGL_PBR_pbr.html
 show Web-Page-PBR-Shader(แบบตัวเต็ม)
 
 https://apichaikraiplong.github.io/project/
+
+show ฉาก 3d-portfolio
+
+https://apichaikraiplong.github.io/3d-portfolio/
