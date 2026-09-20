@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Portfolio</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #c8cad0; overflow: hidden; }
+      #app { position: fixed; inset: 0; }
+    </style>
+
+    <!-- Three.js จาก CDN (ล็อกเวอร์ชัน) ไม่ต้องใช้ npm -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
