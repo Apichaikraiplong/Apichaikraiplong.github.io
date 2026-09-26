@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Portfolio - Classic Bar</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #241a22; overflow: hidden; }
+      #app { position: fixed; inset: 0; }
+
+      #hint {
+        position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+        font: 13px/1.4 "Noto Sans Thai", ui-rounded, system-ui, sans-serif;
+        color: #f3e6d8; background: rgba(30, 18, 20, 0.6);
+        padding: 7px 14px; border-radius: 999px;
+        backdrop-filter: blur(6px); pointer-events: none;
+        transition: opacity 0.6s;
+      }
+      #hint.gone { opacity: 0; }
+
+      #info-panel {
+        position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+        width: min(420px, 86vw);
+        background: rgba(28, 18, 16, 0.92);
+        border: 1px solid rgba(255, 210, 150, 0.25);
+        border-radius: 14px;
+        padding: 16px 42px 16px 18px;
+        color: #f5ecd9;
+        font: 15px/1.5 "Noto Sans Thai", ui-rounded, system-ui, sans-serif;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+        transition: opacity 0.25s, transform 0.25s;
+      }
+      #info-panel.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, 12px); }
+      #info-panel h2 { margin: 0 0 6px; font-size: 17px; color: #ffd58a; }
+      #info-panel p { margin: 0; opacity: 0.9; }
+      #info-close {
+        position: absolute; top: 8px; right: 10px;
+        width: 26px; height: 26px; border-radius: 50%; border: none;
+        background: rgba(255,255,255,0.12); color: #f5ecd9; font-size: 16px; cursor: pointer;
+      }
+      #info-close:hover { background: rgba(255,255,255,0.22); }
+
+      @media (prefers-reduced-motion: reduce) { #hint, #info-panel { transition: none; } }
+    </style>
+
+    <!-- Three.js จาก CDN (ล็อกเวอร์ชัน) ไม่ต้องใช้ npm -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hint">ลากเพื่อหมุน 360° · สกอลล์เพื่อซูม · คลิกวัตถุเพื่อดูข้อมูล</div>
+
+    <div id="info-panel" class="hidden">
+      <button id="info-close" aria-label="close">×</button>
+      <h2 id="info-title"></h2>
+      <p id="info-desc"></p>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
