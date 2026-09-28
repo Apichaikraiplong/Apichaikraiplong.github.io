@@ -43,3 +43,4 @@ https://apichaikraiplong.github.io/project/
 
 show ฉาก 3d-portfolio
 
+https://apichaikraiplong.github.io/bar-portfolio/scene_bar.html
