@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classic Bar - Scene Only</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #0d090b; color: #f2e6d7; font-family: sans-serif; }
+        canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+        #info { position: fixed; top: 20px; left: 20px; font-size: 12px; letter-spacing: 0.1em; opacity: 0.7; pointer-events: none; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="info">CLASSIC BAR — SCENE ONLY</div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 1. ตั้งค่า Scene, Camera, Renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        document.body.appendChild(renderer.domElement);
+
+        // 2. เพิ่มแสงสว่าง
+        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        // 3. ควบคุมมุมมองด้วยเมาส์
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0, 1, 0); // มองมาที่กลางห้อง
+
+        // 4. โหลดไฟล์ bar.glb จากโฟลเดอร์ assets
+        const loader = new GLTFLoader();
+        loader.load(
+            './assets/bar.glb', 
+            (gltf) => {
+                scene.add(gltf.scene);
+                
+                // ตั้งค่ามุมกล้องเริ่มต้นให้มองเห็นฉากบาร์
+                camera.position.set(0, 6, 12); // เพิ่มความสูง (Y = 6) และถอยหลังออกไป (Z = 12)
+                controls.target.set(0, 1, 0); // มองมาที่กลางห้อง
+                controls.update();
+            },
+            (xhr) => {
+                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+            },
+            (error) => {
+                console.error('เกิดข้อผิดพลาดในการโหลดไฟล์ GLB:', error);
+            }
+        );
+
+        // 5. ปรับขนาดหน้าจออัตโนมัติ
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 6. Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0d090b" />
+  <title>Classic Bar — Interactive 3D Portfolio</title>
+  <style>
+    :root { --ivory:#f2e6d7; --muted:rgba(242,230,215,.58); --line:rgba(242,230,215,.14); }
+    * { box-sizing:border-box; }
+    html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0d090b; color:var(--ivory); }
+    body { font-family: Inter, "Noto Sans Thai", system-ui, sans-serif; }
+    #app { position:fixed; inset:0; }
+    canvas { display:block; width:100%; height:100%; touch-action:none; }
+    .grain,.vignette { position:fixed; inset:0; pointer-events:none; }
+    .grain { opacity:.045; mix-blend-mode:soft-light; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.28'/%3E%3C/svg%3E"); }
+    .vignette { background:radial-gradient(circle at 50% 44%, transparent 44%, rgba(0,0,0,.16) 68%, rgba(0,0,0,.72) 100%); }
+    #brand { position:fixed; top:28px; left:30px; letter-spacing:.22em; font-size:10px; text-transform:uppercase; color:rgba(242,230,215,.74); z-index:3; }
+    #brand strong { display:block; font-size:12px; letter-spacing:.28em; margin-top:6px; color:#fff5e9; }
+    #guide { position:fixed; right:28px; top:50%; transform:translateY(-50%); z-index:3; writing-mode:vertical-rl; text-orientation:mixed; font-size:9px; letter-spacing:.25em; color:rgba(242,230,215,.35); text-transform:uppercase; }
+    #hint { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:5; font-size:11px; letter-spacing:.08em; color:rgba(242,230,215,.65); border:1px solid var(--line); background:rgba(11,7,9,.42); padding:8px 14px; border-radius:999px; backdrop-filter:blur(12px); transition:opacity .6s, transform .6s; }
+    #hint.gone { opacity:0; transform:translate(-50%,8px); }
+    #loader { position:fixed; inset:0; display:grid; place-items:center; z-index:20; background:#0d090b; transition:opacity .8s ease, visibility .8s; }
+    #loader.done { opacity:0; visibility:hidden; }
+    .loader-inner { text-align:center; }
+    .loader-kicker { font-size:9px; letter-spacing:.35em; text-transform:uppercase; color:rgba(242,230,215,.4); }
+    .loader-title { margin-top:10px; font:500 34px Georgia, serif; letter-spacing:.06em; }
+    .loader-bar { width:180px; height:1px; margin:22px auto 0; background:rgba(242,230,215,.1); overflow:hidden; }
+    .loader-bar i { display:block; width:45%; height:100%; background:#c99a50; animation:load 1.15s infinite ease-in-out; }
+    @keyframes load { from{transform:translateX(-120%)} to{transform:translateX(320%)} }
+    @media (max-width:700px) { #brand{top:18px;left:18px} #guide{display:none} }
+    @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
+  </style>
+  <script type="importmap">
+    { "imports": { "three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js", "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="loader"><div class="loader-inner"><div class="loader-kicker">interactive 3d portfolio</div><div class="loader-title">Classic Bar</div><div class="loader-bar"><i></i></div></div></div>
+  <div id="brand">DIGITAL SPACE<strong>CLASSIC BAR</strong></div>
+  <div id="guide">drag · orbit · discover · click objects</div>
+  <div id="hint">ลากเพื่อหมุน · สกอลล์เพื่อซูม · คลิกวัตถุเพื่อสำรวจ</div>
+  <div class="grain"></div><div class="vignette"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
