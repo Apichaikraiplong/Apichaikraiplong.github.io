@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { makeInfoCard, makeSkillBoard, makeWelcomeSign } from './textures.js';
 import { PROFILE, SKILLS, WELCOME_TEXT } from './profile.js';
+import { makeSwayMaterial } from './sway.js';
 
 /**
  * โหลดโมเดลทั้งฉากที่ปั้นใน Blender (assets/bar.glb สร้างจาก blender/build_bar.py)
@@ -42,7 +43,7 @@ export async function loadBarModel(url, mats, { wallHalf, wallH }) {
     brass: mats.brass,
     fabric: mats.fabric,
     wood_dark: mats.wood_dark,
-    leaf: mats.leaf,
+    leaf: makeSwayMaterial(mats.leaf), // vertex shader: ใบไม้โอนเอน
     pot: mats.pot,
     barrel: mats.barrel,
     felt: mats.felt,

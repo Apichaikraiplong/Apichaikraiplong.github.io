@@ -8,6 +8,7 @@ import { makeWoodPanel, makeCheckerFloor, makeToonGradient } from './textures.js
 import { buildBarScene } from './bar-props.js'; // ฉากสำรองแบบโค้ดล้วน (ใช้เมื่อโหลด bar.glb ไม่ได้)
 import { loadBarModel } from './bar-model.js'; // ฉากหลัก: โมเดลที่ปั้นใน Blender
 import { setupPicking } from './interactions.js';
+import { swayUniforms } from './sway.js';
 
 const BAR_MODEL_URL = './assets/bar.glb';
 
@@ -156,23 +157,6 @@ const coolFill = new THREE.PointLight(0x8f7fff, 2.2, 10, 2);
 coolFill.position.set(-3.0, 2.4, 3.2);
 scene.add(coolFill);
 
-/* -------------------------------- atmosphere -------------------------------- */
-const dustCount = 420;
-const dustGeo = new THREE.BufferGeometry();
-const dustPos = new Float32Array(dustCount * 3);
-for (let i = 0; i < dustCount; i++) {
-  const i3 = i * 3;
-  dustPos[i3] = THREE.MathUtils.randFloatSpread(9.5);
-  dustPos[i3 + 1] = Math.random() * 3.6 + 0.15;
-  dustPos[i3 + 2] = THREE.MathUtils.randFloatSpread(9.5);
-}
-dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-const dust = new THREE.Points(
-  dustGeo,
-  new THREE.PointsMaterial({ color: 0xffddba, size: 0.014, transparent: true, opacity: 0.12, depthWrite: false })
-);
-scene.add(dust);
-
 /* ------------------------------------ camera -------------------------------- */
 const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(9, 6.8, 8.5);
@@ -279,8 +263,7 @@ renderer.setAnimationLoop(() => {
   picking.update();
 
   pointer.lerp(pointerTarget, 0.045);
-  dust.rotation.y = t * 0.012;
-  dust.position.x = Math.sin(t * 0.11) * 0.12;
+  swayUniforms.uTime.value = t; // ส่งเวลาให้ vertex shader ใบไม้
 
   if (focusAnim) {
     const p = Math.min((performance.now() - focusAnim.start) / focusAnim.duration, 1);
