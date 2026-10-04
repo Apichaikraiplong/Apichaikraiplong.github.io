@@ -223,7 +223,7 @@ function focusOn(object3D) {
   controls.enabled = false;
 }
 
-/* --------------------- เทคนิค "บ้านตุ๊กตา": เฟดผนังที่บังกล้องออก -------------------- */
+
 const toCam = new THREE.Vector3();
 function updateWallFade() {
   toCam.set(camera.position.x, 0, camera.position.z).normalize();
