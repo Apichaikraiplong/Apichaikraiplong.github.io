@@ -2,9 +2,6 @@ import * as THREE from 'three';
 
 /**
  * Vertex Shader: ใบต้นไม้โอนเอนตามลม (เปลี่ยนตำแหน่ง vertex แบบ realtime)
- * - ฉีดโค้ด GLSL เข้าไปใน vertex shader ของ MeshStandardMaterial (แสง/เงา PBR ยังทำงานตามปกติ)
- * - ส่งเวลา uTime เข้า shader ทุกเฟรม แล้วขยับ vertex ด้วย sin/cos
- * - ยิ่งอยู่สูง (ปลายใบ) ยิ่งขยับมาก ส่วนโคนใกล้กระถางแทบไม่ขยับ
  */
 export const swayUniforms = { uTime: { value: 0 } };
 
