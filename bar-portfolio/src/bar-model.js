@@ -6,12 +6,7 @@ import { makeSwayMaterial } from './sway.js';
 
 /**
  * โหลดโมเดลทั้งฉากที่ปั้นใน Blender (assets/bar.glb สร้างจาก blender/build_bar.py)
- *
- * - รูปทรง (geometry) และตำแหน่งทั้งหมดมาจากไฟล์ .glb
- * - วัสดุ: หยิบตาม "ชื่อวัสดุ" ใน Blender มาใช้วัสดุ PBR ชุดเดิมของ main.js เพื่อให้หน้าตาเหมือนเดิมทุกอย่าง
- *   (ชื่อที่ไม่รู้จักจะใช้วัสดุที่ export มากับไฟล์ตามปกติ)
- * - ป้ายข้อมูล/ป้าย Skills/ป้าย WELCOME/รูปถ่าย: ใส่ texture จาก profile.js ตอนรัน แก้ข้อมูลได้โดยไม่ต้อง export ใหม่
- * - ชื่อ Wall_N/S/E/W ใช้กับเทคนิคเฟดผนัง, ชื่อ InfoStandee/PhotoFrame/SkillBoard ใช้กับ picking
+
  */
 const WALL_NORMALS = {
   Wall_N: [0, 0, -1],
