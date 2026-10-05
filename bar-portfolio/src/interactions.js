@@ -1,11 +1,6 @@
 import * as THREE from 'three';
 
-/**
- * ผูก 3D interaction (picking) เข้ากับ canvas — ไม่มีหน้าต่าง GUI แล้ว
- * คลิกโดนป้าย: ป้ายเด้งเล็กน้อย + เรียก onPick(found) (main.js ใช้สั่งให้กล้องเลื่อนไปโฟกัส)
- * pickables: [{ object: THREE.Object3D }]
- * คืนค่า { update() } ให้เรียกทุกเฟรมเพื่อเล่นแอนิเมชันตอนคลิกโดน
- */
+
 export function setupPicking(camera, renderer, pickables, onPick) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
