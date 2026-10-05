@@ -1,22 +1,12 @@
-"""
-build_bar.py  —  สร้างโมเดลทั้งฉาก "1990 BAR" ใน Blender แล้ว export เป็น assets/bar.glb
 
-วิธีรัน (เลือกอย่างใดอย่างหนึ่ง)
-  1) blender --background --python blender/build_bar.py
-  2) เปิด Blender > แท็บ Scripting > Open ไฟล์นี้ > กด Run Script
-     (ถ้ารันจากใน Blender ไฟล์จะถูกเซฟไว้ที่ assets/bar.glb ของโปรเจกต์ หรือข้าง ๆ ไฟล์ .blend)
-
-หน่วย: 1 unit = 1 เมตร  |  พิกัดในสคริปต์เขียนแบบ Three.js (x, y-ขึ้น, z) แล้วแปลงเป็นแกน Blender ให้เอง
-ชื่อ object/วัสดุด้านล่างสำคัญ — src/bar-model.js ใช้ชื่อเหล่านี้หาของมาผูกกับ picking, ผนังเฟด และวัสดุ
-"""
 import bpy, bmesh, math, os, random, sys
 from mathutils import Vector
 
-# ---------------------------------------------------------------- ค่าปรับแต่ง
+
 SIZE, HALF, WALL_H, WALL_T = 8.0, 4.0, 3.6, 0.15
 COUNTER_W, COUNTER_D = 5.4, 1.3
-WELCOME_Z = 0.10                     # ตำแหน่งป้าย WELCOME บนผนังตะวันออก (เดิม 0.55) ค่าน้อยลง = ขยับไปทางซ้าย
-WELCOME_W, WELCOME_H = 2.0, 0.469    # อัตราส่วนต้องตรงกับ canvas 1280x300 ใน textures.js
+WELCOME_Z = 0.10                     
+WELCOME_W, WELCOME_H = 2.0, 0.469    
 
 
 def out_path():
@@ -36,7 +26,7 @@ def out_path():
     return os.path.join(root, 'assets', 'bar.glb')
 
 
-# ---------------------------------------------------------------- พื้นฐาน
+
 bpy.ops.wm.read_factory_settings(use_empty=True)
 COLL = bpy.context.scene.collection
 
@@ -75,7 +65,7 @@ def M(name, color=0xffffff, rough=0.5, metal=0.0, emit=None, emit_strength=0.0, 
     return m
 
 
-# วัสดุ (ชื่อต้องตรงกับ bar-model.js) — ค่าสี/ความหยาบเทียบเท่าของเดิมใน main.js
+
 wall_m = M('wall', 0x603f28, 0.82, 0.02)
 floor_m = M('floor', 0xcfc0ad, 0.42, 0.06)
 cbase_m = M('counterBase', 0x8a603a, 0.58, 0.02)
@@ -101,7 +91,7 @@ welcome_m = M('welcomeSign', 0x211713, 0.72, 0.02)
 photo_m = M('photoInner', 0xd8d2c4, 0.9)
 
 
-# ---------------------------------------------------------------- ตัวสร้างรูปทรง (bmesh)
+
 def bm_box(w, h, d):
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
