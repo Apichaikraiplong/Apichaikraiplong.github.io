@@ -9,6 +9,7 @@ import { buildBarScene } from './bar-props.js'; // ฉากสำรองแ�
 import { loadBarModel } from './bar-model.js'; // ฉากหลัก: โมเดลที่ปั้นใน Blender
 import { setupPicking } from './interactions.js';
 import { swayUniforms } from './sway.js';
+import { buildShaderProps } from './shaders.js';
 
 const BAR_MODEL_URL = './assets/bar.glb';
 
@@ -143,6 +144,9 @@ key.shadow.bias = -0.0004;
 key.shadow.normalBias = 0.03;
 scene.add(key);
 
+const shaderProps = buildShaderProps(key.position);
+room.add(shaderProps.group);
+
 const rim = new THREE.SpotLight(0x9f7cff, 18, 16, Math.PI * 0.18, 0.55, 1.5);
 rim.position.set(-4.2, 3.7, 2.7);
 rim.target.position.set(0, 1.2, 0);
@@ -261,6 +265,7 @@ renderer.setAnimationLoop(() => {
   const t = clock.getElapsedTime();
   updateWallFade();
   picking.update();
+  shaderProps.update(t);
 
   pointer.lerp(pointerTarget, 0.045);
   swayUniforms.uTime.value = t; // ส่งเวลาให้ vertex shader ใบไม้
